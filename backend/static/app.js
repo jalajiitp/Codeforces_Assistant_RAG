@@ -346,6 +346,25 @@ document.addEventListener('DOMContentLoaded', () => {
                     ${buildTagPills(pTags)}
                 </div>
             </div>
+            
+            <div class="tutor-actions" style="margin: 1.5rem 0; display: flex; flex-direction: column; gap: 1rem;">
+                <div style="display: flex; gap: 1rem; align-items: center;">
+                    <button class="primary-btn" id="hint-btn-${pContestId}${pIndex}" style="font-size: 0.9rem; padding: 0.5rem 1rem;">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="margin-right: 0.5rem;"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                        Get a Hint
+                    </button>
+                    <button class="primary-btn" id="toggle-debug-btn-${pContestId}${pIndex}" style="font-size: 0.9rem; padding: 0.5rem 1rem; background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="margin-right: 0.5rem;"><path d="M20 14.66V20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5.34"/><polygon points="18 2 22 6 12 16 8 16 8 12 18 2"/></svg>
+                        Debug Code
+                    </button>
+                </div>
+                <div class="debug-section hidden" id="debug-section-${pContestId}${pIndex}" style="display: flex; flex-direction: column; gap: 0.5rem;">
+                    <textarea id="debug-input-${pContestId}${pIndex}" placeholder="Paste your failing code here..." style="width: 100%; height: 150px; background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; color: var(--text-primary); font-family: monospace; resize: vertical;"></textarea>
+                    <button class="primary-btn" id="debug-btn-${pContestId}${pIndex}" style="align-self: flex-start;">Analyze Logic</button>
+                </div>
+                <div class="tutor-response markdown-body hidden" id="tutor-res-${pContestId}${pIndex}" style="background: rgba(99,102,241,0.1); border-left: 4px solid var(--accent); padding: 1.5rem; border-radius: 8px;"></div>
+            </div>
+
             <button class="accordion-trigger" id="why-trigger">
                 <span class="trigger-left">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
@@ -369,6 +388,76 @@ document.addEventListener('DOMContentLoaded', () => {
         trigger.addEventListener('click', () => {
             trigger.classList.toggle('open');
             body.classList.toggle('open');
+        });
+
+        // Hint logic
+        const hintBtn = document.getElementById(`hint-btn-${pContestId}${pIndex}`);
+        const tutorRes = document.getElementById(`tutor-res-${pContestId}${pIndex}`);
+        hintBtn.addEventListener('click', async () => {
+            tutorRes.classList.remove('hidden');
+            tutorRes.innerHTML = '<div class="spinner-sm" style="display:inline-block; margin-right: 10px;"></div> Fetching Socratic hint...';
+            try {
+                const res = await fetch('/api/hint', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+                    body: JSON.stringify({ problem_id: `${pContestId}${pIndex}` })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || data.error || 'Failed to fetch hint.');
+                tutorRes.innerHTML = marked.parse(data.message);
+                if (window.renderMathInElement) {
+                    window.renderMathInElement(tutorRes, {
+                        delimiters: [
+                            {left: '$$', right: '$$', display: true},
+                            {left: '$', right: '$', display: false},
+                            {left: '\\(', right: '\\)', display: false},
+                            {left: '\\[', right: '\\]', display: true}
+                        ]
+                    });
+                }
+            } catch (err) {
+                tutorRes.innerHTML = `<span style="color:var(--text-red);">${err.message}</span>`;
+            }
+        });
+
+        // Debug toggle logic
+        const toggleDebugBtn = document.getElementById(`toggle-debug-btn-${pContestId}${pIndex}`);
+        const debugSection = document.getElementById(`debug-section-${pContestId}${pIndex}`);
+        toggleDebugBtn.addEventListener('click', () => {
+            debugSection.classList.toggle('hidden');
+        });
+
+        // Debug execution logic
+        const debugBtn = document.getElementById(`debug-btn-${pContestId}${pIndex}`);
+        const debugInput = document.getElementById(`debug-input-${pContestId}${pIndex}`);
+        debugBtn.addEventListener('click', async () => {
+            const code = debugInput.value.trim();
+            if (!code) {
+                showToast("Please paste some code to debug.", "error");
+                return;
+            }
+            tutorRes.classList.remove('hidden');
+            tutorRes.innerHTML = '<div class="spinner-sm" style="display:inline-block; margin-right: 10px;"></div> Analyzing logic against official editorial...';
+            try {
+                const res = await fetch('/api/debug_code', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+                    body: JSON.stringify({ problem_id: `${pContestId}${pIndex}`, code: code })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || data.error || 'Failed to debug code.');
+                tutorRes.innerHTML = marked.parse(data.message);
+                if (window.renderMathInElement) {
+                    window.renderMathInElement(tutorRes, {
+                        delimiters: [
+                            {left: '$$', right: '$$', display: true},
+                            {left: '$', right: '$', display: false},
+                            {left: '\\(', right: '\\)', display: false},
+                            {left: '\\[', right: '\\]', display: true}
+                        ]
+                    });
+                }
+            } catch (err) {
+                tutorRes.innerHTML = `<span style="color:var(--text-red);">${err.message}</span>`;
+            }
         });
     }
 
@@ -714,4 +803,171 @@ document.addEventListener('DOMContentLoaded', () => {
             if (el) { el.classList.remove('active', 'done'); }
         }
     }
+
+    // =========================================================================
+    // SEARCH LOGIC
+    // =========================================================================
+
+    const searchBtn = document.getElementById('search-btn');
+    const searchInput = document.getElementById('search-input');
+    const searchResultsArea = document.getElementById('search-results-area');
+
+    if (searchBtn && searchInput && searchResultsArea) {
+        searchBtn.addEventListener('click', async () => {
+            const query = searchInput.value.trim();
+            if (!query) {
+                showToast("Please enter a search query.", "error");
+                return;
+            }
+
+            searchBtn.disabled = true;
+            searchBtn.innerHTML = '<div class="spinner-sm" style="display:inline-block; margin-right: 10px;"></div> Searching...';
+            searchResultsArea.innerHTML = '';
+
+            try {
+                const res = await fetch('/api/search_problems', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ query })
+                });
+                
+                const data = await res.json();
+                if (!res.ok) {
+                    throw new Error(data.detail || data.error || 'Search failed');
+                }
+
+                if (!data.results || data.results.length === 0) {
+                    searchResultsArea.innerHTML = '<div class="glass-panel">No matching problems found.</div>';
+                } else {
+                    data.results.forEach(problem => {
+                        renderSearchProblemCard(problem, searchResultsArea);
+                    });
+                }
+            } catch (err) {
+                showToast(err.message, "error");
+                searchResultsArea.innerHTML = `<div class="glass-panel" style="color:var(--text-red);">${err.message}</div>`;
+            } finally {
+                searchBtn.disabled = false;
+                searchBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20" style="margin-right: 0.5rem;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Search';
+            }
+        });
+        
+        searchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') searchBtn.click();
+        });
+    }
+
+    function renderSearchProblemCard(meta, area) {
+        const pName      = meta?.name || 'Unknown Problem';
+        const pRating    = meta?.rating;
+        const pContestId = meta?.contest_id;
+        const pIndex     = meta?.index || 'A';
+        const pTags      = meta?.tags || '';
+        const cfUrl      = pContestId ? buildCFLink(pContestId, pIndex) : '#';
+        const ratingCls  = getRatingClass(pRating);
+        const ceScore    = meta?.ce_score ? meta.ce_score.toFixed(2) : '?';
+        // Unique ID suffix to prevent collisions with practice tab
+        const uniqId     = `${pContestId}${pIndex}-search`;
+
+        const card = document.createElement('div');
+        card.className = 'problem-card';
+
+        card.innerHTML = `
+            <div class="problem-card-header">
+                <div class="problem-card-top" style="color: var(--accent);">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    Relevance Score: ${ceScore}
+                </div>
+                <a href="${cfUrl}" target="_blank" rel="noopener" class="problem-name-link">
+                    ${pName}
+                    <svg class="link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                </a>
+                <div class="problem-meta-row">
+                    <span class="rating-badge ${ratingCls}">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                        ${pRating || 'Unrated'}
+                    </span>
+                    ${buildTagPills(pTags)}
+                </div>
+            </div>
+            
+            <div class="tutor-actions" style="margin: 1.5rem 0; display: flex; flex-direction: column; gap: 1rem;">
+                <div style="display: flex; gap: 1rem; align-items: center;">
+                    <button class="primary-btn" id="search-hint-btn-${uniqId}" style="font-size: 0.9rem; padding: 0.5rem 1rem;">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="margin-right: 0.5rem;"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                        Get a Hint
+                    </button>
+                    <button class="primary-btn" id="search-toggle-debug-btn-${uniqId}" style="font-size: 0.9rem; padding: 0.5rem 1rem; background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="margin-right: 0.5rem;"><path d="M20 14.66V20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5.34"/><polygon points="18 2 22 6 12 16 8 16 8 12 18 2"/></svg>
+                        Debug Code
+                    </button>
+                </div>
+                <div class="debug-section hidden" id="search-debug-section-${uniqId}" style="display: flex; flex-direction: column; gap: 0.5rem;">
+                    <textarea id="search-debug-input-${uniqId}" placeholder="Paste your failing code here..." style="width: 100%; height: 150px; background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; color: var(--text-primary); font-family: monospace; resize: vertical;"></textarea>
+                    <button class="primary-btn" id="search-debug-btn-${uniqId}" style="align-self: flex-start;">Analyze Logic</button>
+                </div>
+                <div class="tutor-response markdown-body hidden" id="search-tutor-res-${uniqId}" style="background: rgba(99,102,241,0.1); border-left: 4px solid var(--accent); padding: 1.5rem; border-radius: 8px;"></div>
+            </div>
+        `;
+
+        area.appendChild(card);
+
+        // Hint logic
+        const hintBtn = document.getElementById(`search-hint-btn-${uniqId}`);
+        const tutorRes = document.getElementById(`search-tutor-res-${uniqId}`);
+        hintBtn.addEventListener('click', async () => {
+            tutorRes.classList.remove('hidden');
+            tutorRes.innerHTML = '<div class="spinner-sm" style="display:inline-block; margin-right: 10px;"></div> Fetching Socratic hint...';
+            try {
+                const res = await fetch('/api/hint', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+                    body: JSON.stringify({ problem_id: `${pContestId}${pIndex}` }) // Original ID for API
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || data.error || 'Failed to fetch hint.');
+                tutorRes.innerHTML = marked.parse(data.message);
+                if (window.renderMathInElement) {
+                    window.renderMathInElement(tutorRes, { delimiters: [{left: '$$', right: '$$', display: true}, {left: '$', right: '$', display: false}, {left: '\\(', right: '\\)', display: false}, {left: '\\[', right: '\\]', display: true}] });
+                }
+            } catch (err) {
+                tutorRes.innerHTML = `<span style="color:var(--text-red);">${err.message}</span>`;
+            }
+        });
+
+        // Debug toggle logic
+        const toggleDebugBtn = document.getElementById(`search-toggle-debug-btn-${uniqId}`);
+        const debugSection = document.getElementById(`search-debug-section-${uniqId}`);
+        toggleDebugBtn.addEventListener('click', () => {
+            debugSection.classList.toggle('hidden');
+        });
+
+        // Debug execution logic
+        const debugBtn = document.getElementById(`search-debug-btn-${uniqId}`);
+        const debugInput = document.getElementById(`search-debug-input-${uniqId}`);
+        debugBtn.addEventListener('click', async () => {
+            const code = debugInput.value.trim();
+            if (!code) {
+                showToast("Please paste some code to debug.", "error");
+                return;
+            }
+            tutorRes.classList.remove('hidden');
+            tutorRes.innerHTML = '<div class="spinner-sm" style="display:inline-block; margin-right: 10px;"></div> Analyzing logic against official editorial...';
+            try {
+                const res = await fetch('/api/debug_code', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+                    body: JSON.stringify({ problem_id: `${pContestId}${pIndex}`, code: code }) // Original ID for API
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || data.error || 'Failed to debug code.');
+                tutorRes.innerHTML = marked.parse(data.message);
+                if (window.renderMathInElement) {
+                    window.renderMathInElement(tutorRes, { delimiters: [{left: '$$', right: '$$', display: true}, {left: '$', right: '$', display: false}, {left: '\\(', right: '\\)', display: false}, {left: '\\[', right: '\\]', display: true}] });
+                }
+            } catch (err) {
+                tutorRes.innerHTML = `<span style="color:var(--text-red);">${err.message}</span>`;
+            }
+        });
+    }
+
 });

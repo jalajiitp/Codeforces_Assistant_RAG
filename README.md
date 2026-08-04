@@ -1,166 +1,84 @@
-# 🏋️ Codeforces Coach — AI-Powered Practice Recommender
+# 🏋️ Codeforces Coach — Advanced AI Training Platform
 
-An intelligent Codeforces training system that analyzes a user's competitive programming history, classifies them into a behavioral archetype using **Gaussian Mixture Models (GMM)**, and recommends personalized practice problems using a **two-stage retrieval + XGBoost ranking pipeline** — all presented by a persona-driven **Gemini LLM coach**.
+An intelligent competitive programming training system. It goes beyond simple problem recommendations by providing **Self-Querying Semantic Search**, **ML-driven Behavioral Profiling**, and a **LangGraph-powered Autonomous Socratic Debugger** to act as your personal Codeforces mentor.
 
 ---
 
-## ✨ Features
+## ✨ Core Features
 
 | Feature | Description |
 |---|---|
-| **ML Profiling** | Scrapes Codeforces API, engineers 16 behavioral features (accuracy, tilt speed, tag preferences, etc.), and classifies users into 1 of 10 archetypes via GMM clustering |
-| **Two-Stage Recommender** | ChromaDB semantic retrieval → XGBoost re-ranking with 20 user×problem synergy features |
-| **Negative Pruning** | Automatically filters out problems the user has already attempted |
-| **Persona-Driven Presentation** | Each archetype has a custom system prompt; Gemini presents the problem in-character |
-| **Analytics Dashboard** | View your archetype, accuracy, tilt speed, one-shot rate, strengths & weaknesses |
+| **ML Profiling & Clustering** | Scrapes your CF history, engineers 16 behavioral features, and classifies you into 1 of 10 archetypes using **Gaussian Mixture Models (GMM)**. |
+| **Persona-Driven Recommender** | Uses an **XGBoost** ranking pipeline to find the perfect practice problem and presents it to you using a custom Gemini LLM persona tailored to your archetype. |
+| **Concept Search (2-Stage RAG)** | Find problems using natural language (e.g., *"DP on trees with rerooting"*). Powered by a **SentenceTransformer Bi-Encoder** (Recall) and a **ms-marco Cross-Encoder** (Precision). |
+| **Self-Querying Retriever** | Intercepts search queries with Gemini to extract hard metadata constraints (rating limits, required tags) and applies strict **Post-Filtering** in Python. |
+| **Agentic Socratic Debugger** | A **LangGraph** multi-agent state machine (Critic, Coach, Reviewer). It analyzes your failing code against the official editorial and provides Socratic hints without leaking the solution! |
+| **Negative Pruning** | Automatically filters out problems the user has already attempted from the recommendation pool. |
 
 ---
 
-## 🏗️ Architecture
+## 🏗️ System Architecture
 
-```
-┌─────────────┐     ┌─────────────┐     ┌──────────────┐     ┌─────────────┐
-│  Frontend   │────▶│  FastAPI     │────▶│  ML Engine   │────▶│  GMM Model  │
-│  (HTML/JS)  │     │  (main.py)  │     │ (ml_engine)  │     │  (sklearn)  │
-└─────────────┘     └──────┬──────┘     └──────────────┘     └─────────────┘
-                           │
-                           ▼
-                    ┌──────────────┐     ┌──────────────┐     ┌─────────────┐
-                    │ Chat Engine  │────▶│  ChromaDB    │────▶│  XGBoost    │
-                    │(chat_engine) │     │  (Retrieval) │     │  (Ranking)  │
-                    └──────┬──────┘     └──────────────┘     └─────────────┘
-                           │
-                           ▼
-                    ┌──────────────┐
-                    │  Gemini LLM  │
-                    │(Presentation)│
-                    └──────────────┘
+### 1. Overall Platform Data Flow
+```mermaid
+graph TD
+    UI[Frontend UI] --> API[FastAPI Backend]
+    API --> ML[ML Engine - Profiling]
+    API --> RAG[RAG Engine - Recommendation & Search]
+    API --> AGENT[LangGraph - Debugger]
+    
+    ML --> GMM[GMM Clustering Model]
+    RAG --> CHROMA[(ChromaDB Vector Store)]
+    RAG --> XGB[XGBoost Ranker]
+    RAG --> CE[Cross-Encoder]
+    
+    AGENT --> GEMINI[Gemini Flash LLM]
 ```
 
----
+### 2. The Practice Recommendation Pipeline (ML + RAG)
+1. **ML Profile:** Scrapes Codeforces API for all user submissions, engineers 16 features (accuracy, TLE rate, tag preferences), scales them, and classifies into 1 of 10 behavioral archetypes.
+2. **Query Building:** Gemini reads the user profile and generates targeted ChromaDB search keywords + rating bounds.
+3. **Candidate Retrieval:** ChromaDB retrieves 50 semantic candidate problems within the rating window.
+4. **Negative Pruning:** Filters out every problem the user has already attempted.
+5. **XGBoost Ranking:** Scores remaining candidates using 20 features (user metrics + problem stats + rating delta + tag synergy). The highest-confidence problem wins.
+6. **Presentation:** Gemini presents the selected problem in the persona's character.
 
-## 📁 Project Structure
-
-```
-cf_coach/
-├── backend/
-│   ├── main.py                # FastAPI app with /api/analyze and /api/get_problem
-│   ├── ml_engine.py           # CF API scraping, feature engineering, GMM classification
-│   ├── chat_engine.py         # Query Builder → ChromaDB → XGBoost → Gemini presentation
-│   ├── config.py              # Centralized env config (dotenv loader)
-│   ├── persona_prompts.py     # 10 archetype persona definitions & system prompts
-│   ├── pipeline.py            # ChromaDB data ingestion pipeline
-│   ├── models.py              # SQLAlchemy models (if using Postgres)
-│   ├── test_pipeline.py       # End-to-end CLI tester
-│   ├── requirements.txt       # Python dependencies
-│   ├── .env                   # API keys (not tracked)
-│   ├── chroma_data/           # ChromaDB vector store (not tracked)
-│   └── static/
-│       ├── index.html         # Two-tab UI (Practice + Analytics)
-│       ├── style.css          # Glassmorphism dark theme
-│       └── app.js             # Frontend logic & pipeline step animations
-│
-├── train/
-│   ├── data_extraction.ipynb  # Codeforces bulk data scraping
-│   ├── feature_engg.ipynb     # Feature engineering & EDA
-│   ├── gmm_train.ipynb        # GMM clustering training
-│   ├── t_rank.ipynb           # XGBoost ranker training
-│   ├── stats.ipynb            # Statistical analysis
-│   ├── persona_gmm_model.pkl  # Trained GMM model (not tracked)
-│   ├── persona_scaler.pkl     # StandardScaler (not tracked)
-│   └── xgboost_ranker_v2.json # XGBoost weights (not tracked)
-│
-├── .gitignore
-└── README.md
+### 3. Self-Querying 2-Stage Concept Search
+```mermaid
+graph LR
+    User[User Query] --> Parser[Gemini JSON Parser]
+    
+    Parser --> |Semantic Focus| BiEnc[Bi-Encoder / ChromaDB]
+    Parser --> |Metadata Constraints| PostF[Python Post-Filtering]
+    
+    BiEnc --> |Top 50 Candidates| PostF
+    PostF --> |Top 15 Valid Candidates| CE[ms-marco Cross-Encoder]
+    
+    CE --> |Top 3 Perfect Matches| Output[Render Problem Cards]
+    
+    style Parser fill:#f9f,stroke:#333,stroke-width:2px
+    style CE fill:#bbf,stroke:#333,stroke-width:2px
 ```
 
----
-
-## 🚀 Getting Started
-
-### Prerequisites
-
-- Python 3.10+
-- A [Google Gemini API Key](https://aistudio.google.com/app/apikey)
-
-### 1. Clone & Install
-
-```bash
-git clone https://github.com/<your-username>/cf_coach.git
-cd cf_coach/backend
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-```
-
-### 2. Configure Environment
-
-Create `backend/.env`:
-
-```env
-GEMINI_API_KEY=your_gemini_api_key_here
-CHROMA_COLLECTION_NAME=cf_problems
-EMBEDDING_MODEL=all-MiniLM-L6-v2
-```
-
-### 3. Prepare Data
-
-You need two things before running:
-
-1. **ChromaDB vector store** — Run the ingestion pipeline:
-   ```bash
-   python pipeline.py
-   ```
-
-2. **ML model weights** — Train from the notebooks in `train/`:
-   - `gmm_train.ipynb` → produces `persona_gmm_model.pkl` and `persona_scaler.pkl`
-   - `t_rank.ipynb` → produces `xgboost_ranker_v2.json`
-
-### 4. Run the Server
-
-```bash
-cd backend
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
-```
-
-Open [http://localhost:8000](http://localhost:8000) in your browser.
-
-### 5. Test the Pipeline (CLI)
-
-```bash
-python test_pipeline.py
+### 4. LangGraph Socratic Debugger
+```mermaid
+stateDiagram-v2
+    [*] --> CriticNode
+    
+    CriticNode --> CoachNode: Technical Bug Report
+    note right of CriticNode: Analyzes User Code vs Editorial\n(Time Complexity / Logic Flaws)
+    
+    CoachNode --> ReviewerNode: Draft Hint
+    note right of CoachNode: Writes pedagogical questions
+    
+    ReviewerNode --> CoachNode: UNSAFE (Leaked Solution Code)
+    ReviewerNode --> [*]: SAFE (Ready for User)
+    note right of ReviewerNode: Acts as Anti-Cheat Guardrail
 ```
 
 ---
 
-## 🔧 API Endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/api/analyze` | Scrape CF handle → ML feature extraction → GMM classification |
-| `POST` | `/api/get_problem` | Full pipeline: Analyze → Query Build → Retrieve → Rank → Present |
-
-Both endpoints accept `{"handle": "codeforces_username"}`.
-
----
-
-## 🧠 How the Recommendation Pipeline Works
-
-1. **ML Profile** (`ml_engine.py`): Scrapes Codeforces API for all user submissions, engineers 16 features (accuracy, TLE rate, tag preferences, tilt speed, etc.), scales them, and classifies into 1 of 10 behavioral archetypes via a pre-trained GMM.
-
-2. **Query Building** (`chat_engine.py` Step 1): Gemini LLM reads the user profile and generates targeted ChromaDB search keywords + rating bounds. Falls back to the user's weakest tag on failure.
-
-3. **Candidate Retrieval** (Step 2): ChromaDB semantic search retrieves 50 candidate problems within the rating window.
-
-4. **Negative Pruning** (Step 3): Filters out every problem the user has already attempted on Codeforces.
-
-5. **XGBoost Ranking** (Step 4): Scores remaining candidates using 20 features (8 user metrics + 3 problem stats + 1 rating delta + 8 tag synergy features). The highest-confidence problem wins.
-
-6. **Presentation** (Step 5): Gemini LLM presents the selected problem in the persona's character, explaining *why* it was chosen for the user.
-
----
-
-## 📊 Archetypes
+## 📊 Behavioral Archetypes (GMM Clusters)
 
 | # | Name | Rating Range | Key Trait |
 |---|------|-------------|-----------|
@@ -177,16 +95,73 @@ Both endpoints accept `{"handle": "codeforces_username"}`.
 
 ---
 
-## 🛠️ Tech Stack
+## 📁 Project Structure
 
-- **Backend**: FastAPI, Uvicorn
-- **ML**: scikit-learn (GMM), XGBoost, Pandas
-- **Vector DB**: ChromaDB + SentenceTransformers (all-MiniLM-L6-v2)
-- **LLM**: Google Gemini 2.5 Flash
-- **Frontend**: Vanilla HTML/CSS/JS with glassmorphism design
+```
+cf_coach/
+├── backend/
+│   ├── main.py                # FastAPI endpoints
+│   ├── ml_engine.py           # Feature engineering, GMM classification
+│   ├── chat_engine.py         # Recommendation, Search, & LangGraph logic
+│   ├── config.py              # Centralized environment configs
+│   ├── persona_prompts.py     # 10 archetype persona definitions
+│   ├── pipeline.py            # ChromaDB ingestion script (open-r1/codeforces)
+│   ├── models.py              # SQLAlchemy database ORM
+│   ├── requirements.txt       # Dependencies (langgraph, sentence-transformers, etc.)
+│   ├── .env                   # API keys (NOT TRACKED)
+│   └── static/                # Vanilla HTML/JS frontend (Glassmorphism)
+│
+├── train/                     # Jupyter notebooks for ML training (GMM, XGBoost)
+└── .gitignore                 # Secured Git ignores
+```
 
 ---
 
-## 📝 License
+## 🚀 Getting Started
 
-This project is for educational purposes.
+### Prerequisites
+- Python 3.10+
+- A [Google Gemini API Key](https://aistudio.google.com/app/apikey)
+
+### 1. Installation
+```bash
+git clone https://github.com/<your-username>/cf_coach.git
+cd cf_coach/backend
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+### 2. Configure Environment
+Create `backend/.env`:
+```env
+GEMINI_API_KEY=your_gemini_api_key_here
+CHROMA_COLLECTION_NAME=cf_problems
+EMBEDDING_MODEL=all-MiniLM-L6-v2
+```
+
+### 3. Initialize Database & ML Models
+1. **ChromaDB vector store** — Run the ingestion pipeline to embed 3000+ problems:
+   ```bash
+   python pipeline.py --step 4
+   ```
+2. **ML model weights** — Train from the notebooks in `train/` (GMM & XGBoost).
+
+### 4. Run the Server
+```bash
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
+Open [http://localhost:8000](http://localhost:8000) in your browser!
+
+---
+
+## 🛠️ Tech Stack
+- **Backend:** FastAPI, Uvicorn, SQLAlchemy
+- **Agentic Workflow:** LangGraph, LangChain
+- **Vector DB / RAG:** ChromaDB, SentenceTransformers (Bi-Encoder), HuggingFace (Cross-Encoder)
+- **Machine Learning:** scikit-learn (GMM), XGBoost, Pandas
+- **LLM:** Google Gemini 3.1 Flash-Lite
+- **Frontend:** HTML/CSS/JS (Vanilla + KaTeX for math rendering)
+
+---
+*Built for educational purposes.*

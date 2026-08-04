@@ -118,6 +118,7 @@
                 <button class="nav-tab" data-target="tab-history" id="nav-history">History</button>
                 <button class="nav-tab" data-target="tab-leaderboard" id="nav-leaderboard">Leaderboard</button>
                 <button class="nav-tab" data-target="tab-profile" id="nav-analytics">Analytics</button>
+                <button class="nav-tab" data-target="tab-search" id="nav-search">Search Problems</button>
             </nav>
             <div class="header-right">
                 <div class="active-handle">
@@ -274,12 +275,42 @@
                     </aside>
                  </div>
             </section>
-        </main>
+            <!-- ================= SEARCH TAB ================= -->
+        <section id="tab-search" class="tab-view hidden fade-in">
+            <header class="view-header">
+                <div class="header-content">
+                    <h1>Concept Search</h1>
+                    <p class="subtitle">Find Codeforces problems using natural language queries powered by a Cross-Encoder.</p>
+                </div>
+            </header>
+
+            <div style="margin: 2rem auto 3rem auto; max-width: 800px;">
+                <div style="position: relative; display: flex; align-items: center; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4); border-radius: 50px; background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(99, 102, 241, 0.3); overflow: hidden; backdrop-filter: blur(12px);">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" width="24" height="24" style="position: absolute; left: 1.5rem;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    <input type="text" id="search-input" placeholder="e.g. 'Problems that require DP on trees' or 'String hashing'" style="flex: 1; padding: 1.25rem 1.25rem 1.25rem 4rem; border: none; background: transparent; color: var(--text-primary); font-size: 1.1rem; outline: none; width: 100%;">
+                    <button class="primary-btn" id="search-btn" style="margin: 0.5rem; padding: 0.8rem 2rem; border-radius: 50px; font-size: 1rem; border: none; cursor: pointer;">
+                        Search
+                    </button>
+                </div>
+            </div>
+            
+            <div id="search-results-area" style="display: flex; flex-direction: column; gap: 1.5rem;"></div>
+        </section>
+
+    </main>
     </div>
 
     <div id="toast-container" class="toast-container"></div>
 
+    <!-- Marked.js for Markdown parsing -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    
+    <!-- KaTeX for Math rendering -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
+
+    <!-- Custom CSS -->
     <script src="app.js"></script>
 </body>
 </html>

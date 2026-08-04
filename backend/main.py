@@ -7,7 +7,7 @@ from typing import Optional, List
 import math
 
 from ml_engine import analyze_user_profile
-from chat_engine import fetch_practice_problem
+from chat_engine import fetch_practice_problem, get_socratic_hint, debug_user_code, semantic_problem_search
 from models import SessionLocal, User, ProblemHistory, init_db
 from auth import hash_password, verify_password, create_session, get_current_user, clear_session
 from sqlalchemy import func as sa_func
@@ -41,6 +41,16 @@ class ProfileRequest(BaseModel):
 
 class ToggleCompleteRequest(BaseModel):
     is_completed: bool
+
+class HintRequest(BaseModel):
+    problem_id: str
+
+class DebugRequest(BaseModel):
+    problem_id: str
+    code: str
+
+class SearchRequest(BaseModel):
+    query: str
 
 
 # ── Auth endpoints ───────────────────────────────────────────────────
@@ -182,6 +192,36 @@ def get_problem(req: ProfileRequest, request: Request):
         "profile": result,
         "problem_details": problem_details,
     }
+
+@app.post("/api/hint")
+def api_hint(req: HintRequest, request: Request):
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated.")
+    res = get_socratic_hint(req.problem_id)
+    if "error" in res:
+        raise HTTPException(status_code=400, detail=res["error"])
+    return {"message": res["message"]}
+
+@app.post("/api/debug_code")
+def api_debug_code(req: DebugRequest, request: Request):
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated.")
+    res = debug_user_code(req.problem_id, req.code)
+    if "error" in res:
+        raise HTTPException(status_code=400, detail=res["error"])
+    return {"message": res["message"]}
+
+@app.post("/api/search_problems")
+def api_search_problems(req: SearchRequest, request: Request):
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated.")
+    res = semantic_problem_search(req.query)
+    if "error" in res:
+        raise HTTPException(status_code=400, detail=res["error"])
+    return res
 
 
 # ── History endpoints ────────────────────────────────────────────────

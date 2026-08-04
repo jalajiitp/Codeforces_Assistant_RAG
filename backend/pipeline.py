@@ -255,6 +255,85 @@ def embed_and_store():
 
 
 # ─────────────────────────────────────────────────────────────────────
+# STEP 4 — Ingest HuggingFace datasets (Editorials)
+# ─────────────────────────────────────────────────────────────────────
+def ingest_hf_datasets():
+    """Stream open-r1/codeforces to extract editorials."""
+
+    print("=" * 60)
+    print("STEP 4 · Ingesting HuggingFace datasets …")
+    print("=" * 60)
+
+    try:
+        from datasets import load_dataset
+    except ImportError:
+        print("❌ Please install datasets: pip install datasets")
+        return
+
+    import chromadb
+    from chromadb.utils import embedding_functions
+    from models import ProblemEditorial
+
+    init_db()
+    session = SessionLocal()
+
+    ef = embedding_functions.SentenceTransformerEmbeddingFunction(model_name=EMBEDDING_MODEL)
+    client = chromadb.PersistentClient(path=CHROMA_PERSIST_DIR)
+    collection = client.get_or_create_collection(
+        name="cf_editorials",
+        embedding_function=ef,
+        metadata={"hnsw:space": "cosine"},
+    )
+
+    print("   ▸ Streaming open-r1/codeforces (this will ingest the entire dataset, please wait...) ...")
+    dataset = load_dataset('open-r1/codeforces', split='train', streaming=True)
+
+    count = 0
+    upsert_ids = []
+    upsert_docs = []
+    upsert_metas = []
+
+    try:
+        for row in dataset:
+            contest_id = row.get("contest_id")
+            index = row.get("index")
+            editorial = row.get("editorial")
+
+            if not contest_id or not index or not editorial:
+                continue
+
+            problem_id = f"{contest_id}{index}"
+
+            # Save to DB
+            existing = session.get(ProblemEditorial, problem_id)
+            if not existing:
+                session.add(ProblemEditorial(problem_id=problem_id, editorial_text=editorial))
+
+            upsert_ids.append(problem_id)
+            upsert_docs.append(editorial)
+            upsert_metas.append({"problem_id": problem_id})
+
+            count += 1
+
+            if count % 100 == 0:
+                collection.upsert(ids=upsert_ids, documents=upsert_docs, metadatas=upsert_metas)
+                session.commit()
+                upsert_ids, upsert_docs, upsert_metas = [], [], []
+                print(f"   ▸ Processed {count} editorials...")
+
+        if upsert_ids:
+            collection.upsert(ids=upsert_ids, documents=upsert_docs, metadatas=upsert_metas)
+            session.commit()
+
+        print(f"   ✅ Successfully ingested {count} editorials.\n")
+    except Exception as e:
+        session.rollback()
+        print(f"❌ Error during ingestion: {e}")
+    finally:
+        session.close()
+
+
+# ─────────────────────────────────────────────────────────────────────
 # CLI entrypoint
 # ─────────────────────────────────────────────────────────────────────
 def main():
@@ -262,8 +341,8 @@ def main():
     parser.add_argument(
         "--step",
         type=int,
-        choices=[1, 2, 3],
-        help="Run a single step (1=fetch+store, 2=gen texts, 3=embed). "
+        choices=[1, 2, 3, 4],
+        help="Run a single step (1=fetch+store, 2=gen texts, 3=embed, 4=hf_datasets). "
              "Omit to run the full pipeline.",
     )
     args = parser.parse_args()
@@ -276,6 +355,8 @@ def main():
         generate_texts()
     if args.step is None or args.step == 3:
         embed_and_store()
+    if args.step is None or args.step == 4:
+        ingest_hf_datasets()
 
     elapsed = time.time() - t0
     print(f"🏁 Pipeline finished in {elapsed:.1f}s")

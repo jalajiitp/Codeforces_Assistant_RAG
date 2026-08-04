@@ -71,6 +71,18 @@ class ProblemHistory(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
+class ProblemEditorial(Base):
+    """
+    Stores problem editorials for RAG hints and debugging.
+    """
+
+    __tablename__ = "problem_editorials"
+
+    problem_id = Column(String(20), primary_key=True)
+    editorial_text = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
 def init_db():
     """Create all tables (idempotent)."""
     Base.metadata.create_all(engine)
